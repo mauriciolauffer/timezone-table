@@ -1,0 +1,27 @@
+{
+  "name": "timezone-table",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "lint": "oxlint .",
+    "format": "oxfmt --write ."
+  },
+  "dependencies": {
+    "@ui5/webcomponents": "^2.19.2",
+    "@ui5/webcomponents-fiori": "^2.19.2",
+    "@ui5/webcomponents-icons": "^2.19.2"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0",
+    "oxfmt": "^0.35.0",
+    "oxlint": "^1.50.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
+  }
+}
