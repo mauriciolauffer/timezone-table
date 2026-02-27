@@ -1,7 +1,8 @@
 {
-  "name": "timezone-table",
+  "name": "ui5-timezone-table",
   "private": true,
   "version": "0.1.0",
+  "author": "Mauricio Lauffer",
   "type": "module",
   "scripts": {
     "dev": "vite",
