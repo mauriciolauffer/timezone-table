@@ -1,7 +1,7 @@
 {
   "name": "ui5-timezone-table",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "author": "Mauricio Lauffer",
   "type": "module",
   "scripts": {
@@ -18,13 +18,13 @@
     "@ui5/webcomponents-icons": "^2.19.2"
   },
   "devDependencies": {
-    "@vitest/browser": "3.0.0-beta.1",
-    "@vitest/browser-playwright": "4.0.0",
+    "@vitest/browser": "4.0.18",
+    "@vitest/browser-playwright": "4.0.18",
     "oxfmt": "^0.35.0",
     "oxlint": "^1.50.0",
     "playwright": "^1.58.2",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
-    "vitest": "3.0.0-beta.1"
+    "vitest": "4.0.18"
   }
 }
