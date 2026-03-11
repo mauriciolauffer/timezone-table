@@ -1,0 +1,30 @@
+{
+  "name": "ui5-timezone-table",
+  "private": true,
+  "version": "0.1.0",
+  "author": "Mauricio Lauffer",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "lint": "oxlint .",
+    "format": "oxfmt --write ."
+  },
+  "dependencies": {
+    "@ui5/webcomponents": "^2.19.2",
+    "@ui5/webcomponents-fiori": "^2.19.2",
+    "@ui5/webcomponents-icons": "^2.19.2"
+  },
+  "devDependencies": {
+    "@vitest/browser": "2.1.9",
+    "@vitest/browser-playwright": "4.0.0",
+    "oxfmt": "^0.35.0",
+    "oxlint": "^1.50.0",
+    "playwright": "^1.58.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "2.1.9"
+  }
+}
