@@ -1,59 +1,127 @@
-# User Stories - Time Zone Converter
+# User Stories
 
-## 1. Add Time Zone
+👤 1. View Multiple Time Zones
+User Story
+As a user, I want to view multiple time zones side-by-side so that I can quickly understand time differences.
 
-**As a** user who works with global teams
-**I want to** add multiple time zones to my dashboard
-**So that** I can easily see the current time in different locations.
+Acceptance Criteria
 
-### Acceptance Criteria:
+- User can add multiple cities/time zones via search
+- System displays all selected time zones in a single grid view
+- Each column/row shows current local time for each location
+- Time updates in real-time
+- System auto-detects user’s current time zone by default
 
-- User can search for a time zone by city or region name.
-- Adding a time zone displays it in a list/table.
-- The list shows the location name, current time, and offset from UTC.
-- Duplicate time zones should be handled gracefully (e.g., prevented or warned).
+🔍 2. Search and Add Locations
+User Story
+As a user, I want to search for cities or locations so that I can add relevant time zones.
 
-## 2. Remove Time Zone
+Acceptance Criteria
 
-**As a** user with changing project locations
-**I want to** remove time zones from my list
-**So that** I can keep my dashboard relevant and uncluttered.
+- User can type city or country names into a search bar
+- Autocomplete suggestions are shown
+- Selecting a result adds it to the comparison view
+- System supports a large set of global locations (cities-based, not just offsets)
 
-### Acceptance Criteria:
+🎚️ 3. Interactive Time Slider (Core UX Feature)
+User Story
+As a user, I want to drag a time slider to see how time changes across zones so that I can find suitable meeting times.
 
-- Each time zone entry has a clear "Remove" or "Delete" action.
-- Removing a time zone immediately updates the UI without requiring a page reload.
+Acceptance Criteria
 
-## 3. Convert Time
+- A horizontal timeline (“hour ruler”) is displayed
+- User can drag/scroll to change the selected time
+- All time zones update simultaneously based on selected time
+- Current time is visually highlighted
 
-**As a** user scheduling a meeting
-**I want to** adjust the time in one time zone and see the corresponding time in all other added zones
-**So that** I can find a suitable time for all participants.
+🌗 4. Visual Day/Night & Working Hours
+User Story
+As a user, I want visual cues for working hours so that I can easily identify suitable meeting times.
 
-### Acceptance Criteria:
+Acceptance Criteria
 
-- User can change the time (hours/minutes) for any time zone in the list.
-- Changing the time in one zone updates the times in all other zones proportionally based on their offsets.
-- A date picker or "today/tomorrow" indicator is present if the conversion crosses a day boundary.
+- Time blocks are color-coded (e.g., night, work hours, evening)
+- Visual distinction between day and night is clear
+- Optional highlighting of weekends or non-working hours
 
-## 4. Persist Configuration
+📅 5. Select Time Ranges / Schedule Events
+User Story
+As a user, I want to select a specific time range so that I can plan meetings or events.
 
-**As a** frequent user
-**I want to** have my selected time zones saved between sessions
-**So that** I don't have to re-add them every time I open the application.
+Acceptance Criteria
 
-### Acceptance Criteria:
+- User can select a single hour or a time range
+- Selected range is visually highlighted
+- User can navigate to a dedicated “event view”
+- Event view shows selected time across all zones
 
-- Selected time zones are saved in the browser's local storage.
-- On page reload, the application restores the list of previously selected time zones.
+🔗 6. Shareable Meeting Links
+User Story
+As a user, I want to share a link with selected times so that others can see the same schedule.
 
-## 5. Responsive Design
+Acceptance Criteria
 
-**As a** mobile user
-**I want to** use the time zone converter on my phone
-**So that** I can check times while on the go.
+- System generates a unique URL for selected time + zones
+- Opening the link reproduces the same view
+- No login required to access shared link
 
-### Acceptance Criteria:
+📆 7. Calendar Integration
+User Story
+As a user, I want to integrate with my calendar so that I can schedule events directly.
 
-- The UI adapts to different screen sizes (mobile, tablet, desktop).
-- Tables or lists remain readable and functional on small screens.
+Acceptance Criteria
+
+- User can export or sync selected time to calendar tools (e.g., Google Calendar)
+- Event includes correct time zone conversions
+- Event metadata (time, zones) is preserved
+
+⚙️ 8. Customize Settings
+User Story
+As a user, I want to customize display preferences so that the tool fits my needs.
+
+Acceptance Criteria
+
+- User can change date/time format (12h/24h)
+- User can change default time zone
+- User can reorder time zones (e.g., drag-and-drop)
+- Preferences persist during session
+
+🔄 9. Reorder & Prioritize Time Zones
+User Story
+As a user, I want to reorder time zones so that I can prioritize relevant locations.
+
+Acceptance Criteria
+
+- User can drag and drop time zones to reorder
+- First/top time zone is treated as the “base” time zone
+- All calculations align relative to the base zone
+
+🌐 10. No-Login, Instant Use
+User Story
+As a user, I want to use the tool without signing up so that I can quickly check times.
+
+Acceptance Criteria
+
+- User can access core features without authentication
+- No mandatory onboarding or account creation
+- Full functionality available immediately
+
+🧩 11. Cross-Platform Access
+User Story
+As a user, I want to access the tool across devices so that I can use it anywhere.
+
+Acceptance Criteria
+
+- Tool works in web browsers
+- Mobile apps or responsive UI available
+- State can be shared via links across devices
+
+🎯 12. Compare Up to Multiple Time Zones
+User Story
+As a user, I want to compare several time zones at once so that I can coordinate globally.
+
+Acceptance Criteria
+
+- User can add multiple time zones (e.g., up to ~10)
+- UI remains readable and usable with multiple zones
+- All zones update synchronously
