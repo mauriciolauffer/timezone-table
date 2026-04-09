@@ -15,7 +15,8 @@
   "dependencies": {
     "@ui5/webcomponents": "^2.20.2",
     "@ui5/webcomponents-fiori": "^2.20.2",
-    "@ui5/webcomponents-icons": "^2.20.2"
+    "@ui5/webcomponents-icons": "^2.20.2",
+    "temporal-polyfill": "^0.3.2"
   },
   "devDependencies": {
     "@vitest/browser": "4.1.2",

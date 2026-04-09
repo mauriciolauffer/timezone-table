@@ -8,6 +8,7 @@ import "@ui5/webcomponents/dist/TableHeaderRow.js";
 import "@ui5/webcomponents/dist/TableHeaderCell.js";
 import "@ui5/webcomponents/dist/ComboBox.js";
 import "@ui5/webcomponents/dist/ComboBoxItem.js";
+import { Temporal } from "temporal-polyfill";
 
 interface TimeZoneData {
   id: string;
@@ -18,7 +19,7 @@ const allTimeZones: string[] = Intl.supportedValuesOf("timeZone");
 let selectedTimeZones: TimeZoneData[] = [];
 
 export function init(container: HTMLElement) {
-  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const userTimeZone = Temporal.Now.timeZoneId();
   selectedTimeZones = [{ id: userTimeZone, name: userTimeZone }];
   render(container);
 }
@@ -68,12 +69,11 @@ function render(container: HTMLElement) {
 }
 
 function formatTime(timeZone: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+  return Temporal.Now.zonedDateTimeISO(timeZone).toLocaleString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    timeZone,
-  }).format(new Date());
+  });
 }
 
 function setupEventListeners(container: HTMLElement) {
@@ -91,20 +91,20 @@ function setupEventListeners(container: HTMLElement) {
   searchInput?.addEventListener("selection-change", (event: any) => {
     const item = event.detail.item;
     if (item) {
-      addTimeZone(container, item.text);
-      searchInput.value = "";
+        addTimeZone(container, item.text);
+        searchInput.value = "";
     }
   });
 }
 
 function updateClocks() {
-  const timeCells = document.querySelectorAll(".current-time");
-  timeCells.forEach((cell) => {
-    const tz = cell.getAttribute("data-tz");
-    if (tz) {
-      cell.textContent = formatTime(tz);
-    }
-  });
+    const timeCells = document.querySelectorAll(".current-time");
+    timeCells.forEach(cell => {
+        const tz = cell.getAttribute("data-tz");
+        if (tz) {
+            cell.textContent = formatTime(tz);
+        }
+    });
 }
 
 const appElement = document.querySelector<HTMLDivElement>("#app");
