@@ -11,6 +11,8 @@ import "@ui5/webcomponents/dist/ComboBoxItem.js";
 import "@ui5/webcomponents/dist/Slider.js";
 import "@ui5/webcomponents/dist/Dialog.js";
 import "@ui5/webcomponents/dist/Switch.js";
+import "@ui5/webcomponents/dist/Label.js";
+import "@ui5/webcomponents/dist/Title.js";
 import "@ui5/webcomponents-icons/dist/refresh.js";
 import "@ui5/webcomponents-icons/dist/calendar.js";
 import "@ui5/webcomponents-icons/dist/settings.js";
@@ -141,8 +143,8 @@ function render(container: HTMLElement) {
                 <ui5-table-row>
                     <ui5-table-cell>
                         <div style="display: flex; flex-direction: column;">
-                            <span style="font-weight: bold;">${tz.name.split("/").pop()?.replace(/_/g, " ")}</span>
-                            <span style="font-size: 0.8rem; color: #666;">${tz.id}</span>
+                            <ui5-title level="H6">${tz.name.split("/").pop()?.replace(/_/g, " ")}</ui5-title>
+                            <ui5-label style="font-size: 0.8rem;">${tz.id}</ui5-label>
                         </div>
                     </ui5-table-cell>
                     <ui5-table-cell class="current-time" data-tz="${tz.id}">${formatTime(tzDateTime)}</ui5-table-cell>
