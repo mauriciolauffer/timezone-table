@@ -38,7 +38,7 @@ function render(container: HTMLElement) {
       <div style="padding: 1rem; display: flex; flex-direction: column; gap: 1rem;">
         <div style="display: flex; gap: 0.5rem; align-items: center;">
             <ui5-combobox id="tz-search" placeholder="Search for a city or time zone..." style="flex: 1;">
-                ${allTimeZones.map((tz) => `<ui5-cb-item text="${tz}"></ui5-cb-item>`).join("")}
+                ${timeZoneItemsHtml}
             </ui5-combobox>
             <ui5-button id="add-tz-btn" design="Emphasized">Add</ui5-button>
         </div>
