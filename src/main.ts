@@ -31,7 +31,7 @@ let selectedTimeZones: TimeZoneData[] = [];
 let selectedDateTime = Temporal.Now.zonedDateTimeISO();
 let selectedDuration = 60; // 1 hour default
 let is24HourFormat = false;
-let clockInterval: any;
+let clockInterval: ReturnType<typeof setInterval> | undefined;
 
 export function init(container: HTMLElement) {
   const userTimeZone = Temporal.Now.timeZoneId();
@@ -403,7 +403,8 @@ function setupEventListeners(container: HTMLElement) {
 
 function updateClocks(container: HTMLElement) {
   const now = Temporal.Now.zonedDateTimeISO();
-  const isCurrentlyNow = Math.abs(now.epochSeconds - selectedDateTime.epochSeconds) < 2;
+  const isCurrentlyNow =
+    Math.abs(Number(now.epochMilliseconds) - Number(selectedDateTime.epochMilliseconds)) < 2000;
 
   // For testing US 1 real-time updates, always update the table cells
   const timeCells = container.querySelectorAll(".current-time");
