@@ -80,7 +80,7 @@ function syncStateToURL() {
     duration: selectedDuration,
     is24h: is24HourFormat,
   };
-  window.location.hash = encodeURIComponent(JSON.stringify(state));
+  window.history.replaceState(null, "", "#" + encodeURIComponent(JSON.stringify(state)));
 }
 
 function render(container: HTMLElement) {
