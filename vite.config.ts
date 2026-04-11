@@ -10,4 +10,14 @@ export default defineConfig({
       headless: true,
     },
   },
+  optimizeDeps: {
+    include: [
+      "@ui5/webcomponents-icons/dist/refresh.js",
+      "@ui5/webcomponents/dist/Assets.js",
+      "@ui5/webcomponents-fiori/dist/Assets.js",
+      "@ui5/webcomponents/dist/Slider.js",
+      "@ui5/webcomponents/dist/ComboBox.js",
+      "@ui5/webcomponents/dist/Table.js",
+    ],
+  },
 });
