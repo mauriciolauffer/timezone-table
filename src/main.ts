@@ -13,6 +13,7 @@ import "@ui5/webcomponents/dist/Dialog.js";
 import "@ui5/webcomponents/dist/Switch.js";
 import "@ui5/webcomponents/dist/Label.js";
 import "@ui5/webcomponents/dist/Title.js";
+import "@ui5/webcomponents/dist/Tag.js";
 import "@ui5/webcomponents-icons/dist/refresh.js";
 import "@ui5/webcomponents-icons/dist/calendar.js";
 import "@ui5/webcomponents-icons/dist/settings.js";
@@ -62,7 +63,7 @@ export function init(container: HTMLElement) {
   if (clockInterval) clearInterval(clockInterval);
   clockInterval = setInterval(() => {
     updateClocks(container);
-  }, 1000);
+  }, 100);
 }
 
 function addTimeZone(container: HTMLElement, id: string) {
@@ -80,7 +81,7 @@ function syncStateToURL() {
     duration: selectedDuration,
     is24h: is24HourFormat,
   };
-  window.history.replaceState(null, "", "#" + encodeURIComponent(JSON.stringify(state)));
+  window.location.hash = encodeURIComponent(JSON.stringify(state));
 }
 
 function render(container: HTMLElement) {
@@ -142,9 +143,9 @@ function render(container: HTMLElement) {
                 return `
                 <ui5-table-row>
                     <ui5-table-cell>
-                        <div style="display: flex; flex-direction: column;">
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
                             <ui5-title level="H6">${tz.name.split("/").pop()?.replace(/_/g, " ")}</ui5-title>
-                            <ui5-label style="font-size: 0.8rem;">${tz.id}</ui5-label>
+                            <ui5-tag design="Set2" color-scheme="6" style="width: fit-content; font-size: 0.7rem;">${tz.id}</ui5-tag>
                         </div>
                     </ui5-table-cell>
                     <ui5-table-cell class="current-time" data-tz="${tz.id}">${formatTime(tzDateTime)}</ui5-table-cell>
