@@ -62,7 +62,7 @@ export function init(container: HTMLElement) {
   if (clockInterval) clearInterval(clockInterval);
   clockInterval = setInterval(() => {
     updateClocks(container);
-  }, 100);
+  }, 1000);
 }
 
 function addTimeZone(container: HTMLElement, id: string) {
