@@ -13,19 +13,19 @@
     "format": "oxfmt --write ."
   },
   "dependencies": {
-    "@ui5/webcomponents": "^2.21.0",
-    "@ui5/webcomponents-fiori": "^2.21.0",
-    "@ui5/webcomponents-icons": "^2.21.0",
+    "@ui5/webcomponents": "^2.21.1",
+    "@ui5/webcomponents-fiori": "^2.21.1",
+    "@ui5/webcomponents-icons": "^2.21.1",
     "temporal-polyfill": "^0.3.2"
   },
   "devDependencies": {
-    "@vitest/browser": "4.1.4",
-    "@vitest/browser-playwright": "4.1.4",
-    "oxfmt": "^0.44.0",
-    "oxlint": "^1.59.0",
+    "@vitest/browser": "4.1.5",
+    "@vitest/browser-playwright": "4.1.5",
+    "oxfmt": "^0.46.0",
+    "oxlint": "^1.61.0",
     "playwright": "^1.59.1",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.8",
-    "vitest": "4.1.4"
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10",
+    "vitest": "4.1.5"
   }
 }
