@@ -544,9 +544,9 @@ test("Move-down on last row is a no-op", async () => {
   const addBtn = document.querySelector<any>("#add-tz-btn");
 
   search.value = "Asia/Calcutta";
+  const beforeCount = document.querySelectorAll("ui5-table-row").length;
   addBtn.click();
-  // Re-render with ComboBox rebuild is slow; wait for it to settle
-  await new Promise((r) => setTimeout(r, 5000));
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > beforeCount);
 
   expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(2);
 
