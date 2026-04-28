@@ -33,17 +33,17 @@ See [user-stories.md](user-stories.md) for the full list of user stories and acc
 
 ## Technical Notes
 
-| Concern | Decision |
-|---|---|
-| Time handling | `temporal-polyfill` (Temporal API); all instants stored as `Temporal.ZonedDateTime` |
-| State persistence | URL hash (JSON, `encodeURIComponent`); no server, no localStorage |
-| UI components | UI5 Web Components v2 (SAP Fiori design language) |
-| Package manager | pnpm |
-| Build | Vite 8 / TypeScript 6 |
-| Testing | Vitest 4 with Playwright browser provider; screenshot regression tests |
-| Linting / Formatting | oxlint + oxfmt |
-| Real-time update | `setInterval` at 100 ms; full re-render only on hour change |
-| Architecture | Frontend-only; no backend or database dependencies |
+| Concern              | Decision                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| Time handling        | `temporal-polyfill` (Temporal API); all instants stored as `Temporal.ZonedDateTime` |
+| State persistence    | URL hash (JSON, `encodeURIComponent`); no server, no localStorage                   |
+| UI components        | UI5 Web Components v2 (SAP Fiori design language)                                   |
+| Package manager      | pnpm                                                                                |
+| Build                | Vite 8 / TypeScript 6                                                               |
+| Testing              | Vitest 4 with Playwright browser provider; screenshot regression tests              |
+| Linting / Formatting | oxlint + oxfmt                                                                      |
+| Real-time update     | `setInterval` at 100 ms; full re-render only on hour change                         |
+| Architecture         | Frontend-only; no backend or database dependencies                                  |
 
 ### Project Structure
 
@@ -57,13 +57,13 @@ tsconfig.json       TypeScript configuration
 
 ### Development Commands
 
-| Command | Purpose |
-|---|---|
-| `pnpm dev` | Start local development server |
-| `pnpm build` | Production build (`tsc && vite build`) |
-| `pnpm test` | Run Vitest browser tests |
-| `pnpm run lint` | Lint with oxlint + check formatting with oxfmt |
-| `pnpm run format` | Format codebase with oxfmt |
+| Command           | Purpose                                        |
+| ----------------- | ---------------------------------------------- |
+| `pnpm dev`        | Start local development server                 |
+| `pnpm build`      | Production build (`tsc && vite build`)         |
+| `pnpm test`       | Run Vitest browser tests                       |
+| `pnpm run lint`   | Lint with oxlint + check formatting with oxfmt |
+| `pnpm run format` | Format codebase with oxfmt                     |
 
 ### Coding Guidelines
 

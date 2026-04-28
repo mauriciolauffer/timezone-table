@@ -619,7 +619,7 @@ test("updateClocks triggers re-render when hour rolls over", async () => {
 
   // Set selectedDateTime to the same instant but with a different hour value
   // by mocking the slider to the previous hour
-  const prevHourMinutes = ((now.hour === 0 ? 23 : now.hour - 1) * 60) + now.minute;
+  const prevHourMinutes = (now.hour === 0 ? 23 : now.hour - 1) * 60 + now.minute;
   const timeSlider = document.querySelector<any>("#time-slider");
   timeSlider.value = prevHourMinutes;
   timeSlider.dispatchEvent(new CustomEvent("input"));
