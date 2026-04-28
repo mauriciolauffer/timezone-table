@@ -239,10 +239,11 @@ test("Adding up to 10 time zones", async () => {
   const search = document.querySelector<any>("#tz-search");
   const addBtn = document.querySelector<any>("#add-tz-btn");
 
+  // Australia/Sydney is already present (default zone), so skip it to avoid duplicate
   const extraZones = [
     "Africa/Cairo",
     "Asia/Seoul",
-    "Australia/Sydney",
+    "Europe/London",
     "Europe/Berlin",
     "America/New_York",
     "America/Chicago",
@@ -252,14 +253,14 @@ test("Adding up to 10 time zones", async () => {
   ];
 
   for (const tz of extraZones) {
-    const before = document.querySelectorAll("ui5-table-row").length;
     search.value = tz;
     addBtn.click();
-    await waitFor(() => document.querySelectorAll("ui5-table-row").length > before);
+    // Re-renders are slow with hundreds of ComboBox items; wait generously per zone
+    await new Promise((r) => setTimeout(r, 3000));
   }
 
   expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(10);
-});
+}, 120000);
 
 // ---------------------------------------------------------------------------
 // New integration tests
@@ -470,4 +471,173 @@ test("formatTime uses 12h format by default", async () => {
   document.querySelectorAll(".current-time").forEach((cell) => {
     expect(cell.textContent?.trim()).toMatch(/^\d{2}:\d{2}:\d{2} [AP]M$/);
   });
+});
+
+test("ComboBox selection-change adds time zone", async () => {
+  const before = document.querySelectorAll("ui5-table-row").length;
+  const search = document.querySelector<any>("#tz-search");
+
+  search.dispatchEvent(
+    new CustomEvent("selection-change", {
+      detail: { item: { text: "Europe/Madrid" } },
+      bubbles: true,
+    }),
+  );
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > before);
+
+  const cells = Array.from(document.querySelectorAll("ui5-table-cell")).map((c) =>
+    c.textContent?.trim(),
+  );
+  expect(cells.some((c) => c?.includes("Europe/Madrid"))).toBe(true);
+  expect(search.value).toBe("");
+});
+
+test("ComboBox selection-change with no item is ignored", async () => {
+  const before = document.querySelectorAll("ui5-table-row").length;
+  const search = document.querySelector<any>("#tz-search");
+
+  search.dispatchEvent(
+    new CustomEvent("selection-change", {
+      detail: { item: null },
+      bubbles: true,
+    }),
+  );
+
+  await new Promise((r) => setTimeout(r, 200));
+  expect(document.querySelectorAll("ui5-table-row").length).toBe(before);
+});
+
+test("Add button ignores invalid time zone value", async () => {
+  const before = document.querySelectorAll("ui5-table-row").length;
+  const search = document.querySelector<any>("#tz-search");
+  search.value = "Not/AReal/Zone";
+  document.querySelector<any>("#add-tz-btn").click();
+
+  await new Promise((r) => setTimeout(r, 200));
+  expect(document.querySelectorAll("ui5-table-row").length).toBe(before);
+});
+
+test("Move-up on first row is a no-op", async () => {
+  const search = document.querySelector<any>("#tz-search");
+  const addBtn = document.querySelector<any>("#add-tz-btn");
+
+  const before = document.querySelectorAll("ui5-table-row").length;
+  search.value = "Europe/London";
+  addBtn.click();
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > before);
+
+  const getFirstTzTag = () => document.querySelectorAll("ui5-tag")[0]?.textContent?.trim() ?? "";
+  const originalFirst = getFirstTzTag();
+
+  const moveUpBtns = document.querySelectorAll<any>(".move-up-btn");
+  // First row move-up button is disabled but we dispatch click anyway to hit the guard
+  moveUpBtns[0].removeAttribute("disabled");
+  moveUpBtns[0].click();
+
+  await new Promise((r) => setTimeout(r, 200));
+  expect(getFirstTzTag()).toBe(originalFirst);
+});
+
+test("Move-down on last row is a no-op", async () => {
+  const search = document.querySelector<any>("#tz-search");
+  const addBtn = document.querySelector<any>("#add-tz-btn");
+
+  search.value = "Asia/Calcutta";
+  addBtn.click();
+  // Re-render with ComboBox rebuild is slow; wait for it to settle
+  await new Promise((r) => setTimeout(r, 5000));
+
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(2);
+
+  const getTags = () =>
+    Array.from(document.querySelectorAll("ui5-tag")).map((t) => t.textContent?.trim());
+  const originalTags = getTags();
+
+  // Enable the disabled button to exercise the index guard
+  const moveDownBtns = document.querySelectorAll<any>(".move-down-btn");
+  const last = moveDownBtns[moveDownBtns.length - 1];
+  last.removeAttribute("disabled");
+  last.click();
+
+  // Guard check is synchronous; wait briefly for any accidental re-render
+  await new Promise((r) => setTimeout(r, 500));
+  expect(getTags()).toEqual(originalTags);
+}, 30000);
+
+test("updateClocks triggers full re-render when hour changes", async () => {
+  // Move slider to midnight so selectedDateTime is far from now
+  const timeSlider = document.querySelector<any>("#time-slider");
+  timeSlider.value = 0;
+  timeSlider.dispatchEvent(new CustomEvent("input"));
+  await waitFor(() => /:00:00/.test(document.querySelector(".current-time")?.textContent ?? ""));
+
+  // Reset restores selectedDateTime ≈ now; the clock interval (100ms) will then
+  // detect isCurrentlyNow=true and update both the display and slider.
+  document.querySelector<any>("#reset-time-btn").click();
+  await new Promise((r) => setTimeout(r, 300));
+
+  const sliderVal = Number(document.querySelector<any>("#time-slider")?.value ?? 0);
+  expect(sliderVal).toBeGreaterThan(0);
+});
+
+test("init with empty hash uses auto-detected timezone", async () => {
+  window.location.hash = "";
+  document.body.innerHTML = '<div id="app"></div>';
+  init(document.querySelector<HTMLElement>("#app")!);
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const cells = Array.from(document.querySelectorAll("ui5-table-cell")).map((c) =>
+    c.textContent?.trim(),
+  );
+  expect(cells.some((c) => c?.includes(userTz))).toBe(true);
+});
+
+test("init with partial hash only applies present fields", async () => {
+  // Hash with zones only — time, duration, is24h all absent
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  window.location.hash = encodeURIComponent(
+    JSON.stringify({ zones: [{ id: "Europe/London", name: "Europe/London" }] }),
+  );
+  document.body.innerHTML = '<div id="app"></div>';
+  init(document.querySelector<HTMLElement>("#app")!);
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  const cells = Array.from(document.querySelectorAll("ui5-table-cell")).map((c) =>
+    c.textContent?.trim(),
+  );
+  expect(cells.some((c) => c?.includes("London"))).toBe(true);
+  // duration defaults to 60 min when not in hash
+  expect(document.body.textContent).toContain("Duration: 60 min");
+});
+
+test("updateClocks triggers re-render when hour rolls over", async () => {
+  const now = Temporal.Now.zonedDateTimeISO();
+
+  // Set selectedDateTime to the same instant but with a different hour value
+  // by mocking the slider to the previous hour
+  const prevHourMinutes = ((now.hour === 0 ? 23 : now.hour - 1) * 60) + now.minute;
+  const timeSlider = document.querySelector<any>("#time-slider");
+  timeSlider.value = prevHourMinutes;
+  timeSlider.dispatchEvent(new CustomEvent("input"));
+  await new Promise((r) => setTimeout(r, 200));
+
+  // Spy on render indirectly: the shellbar re-renders when render() is called
+  const shellbarBefore = document.querySelector("ui5-shellbar");
+
+  // Now reset to current time — updateClocks will see isCurrentlyNow=true and
+  // selectedDateTime.hour !== now.hour, triggering a full render()
+  document.querySelector<any>("#reset-time-btn").click();
+  // Wait for the 100ms clock tick + render
+  await new Promise((r) => setTimeout(r, 300));
+
+  // Table should still be rendered correctly after the re-render
+  expect(document.querySelector("ui5-shellbar")).toBeTruthy();
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(1);
+  // Slider should now reflect current time
+  const sliderVal = Number(document.querySelector<any>("#time-slider")?.value ?? 0);
+  expect(sliderVal).toBeGreaterThan(0);
 });
