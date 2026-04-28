@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"C:/SAPDevelop/timezone-table\" show --stat HEAD)",
+      "Bash(git -C \"C:/SAPDevelop/timezone-table\" show --stat HEAD~1)",
+      "Bash(pnpm add *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm exec *)"
+    ]
+  }
+}
