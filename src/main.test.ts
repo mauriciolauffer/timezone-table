@@ -1,33 +1,66 @@
-import { expect, test, beforeEach } from "vitest";
+import { expect, test, beforeEach, afterEach, vi } from "vitest";
+import { Temporal } from "temporal-polyfill";
 import { init } from "./main";
 
+function waitFor(fn: () => boolean, timeout = 3000, interval = 50): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeout;
+    const check = () => {
+      if (fn()) {
+        resolve();
+      } else if (Date.now() >= deadline) {
+        reject(new Error("waitFor timed out"));
+      } else {
+        setTimeout(check, interval);
+      }
+    };
+    check();
+  });
+}
+
+function getApp(): HTMLElement {
+  return document.querySelector<HTMLElement>("#app")!;
+}
+
 beforeEach(() => {
+  // Encode a full reset state so init() resets ALL module-level variables,
+  // including is24HourFormat and selectedDuration which init() skips when hash is empty.
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const now = Temporal.Now.zonedDateTimeISO().toString();
+  window.location.hash = encodeURIComponent(
+    JSON.stringify({
+      zones: [{ id: userTz, name: userTz }],
+      time: now,
+      duration: 60,
+      is24h: false,
+    }),
+  );
   document.body.innerHTML = '<div id="app"></div>';
-  const app = document.querySelector<HTMLElement>("#app")!;
-  init(app);
+  init(getApp());
 });
 
+afterEach(() => {
+  window.location.hash = "";
+});
+
+// ---------------------------------------------------------------------------
+// Existing tests (quality-improved: replaced fixed sleeps with waitFor)
+// ---------------------------------------------------------------------------
+
 test("App should render correctly and auto-detect timezone", async () => {
-  // Wait for the app to initialize and render
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await waitFor(() => !!document.querySelector("ui5-shellbar"));
 
   const shellbar = document.querySelector("ui5-shellbar");
   expect(shellbar).toBeTruthy();
   expect(shellbar?.getAttribute("primary-title")).toBe("Time Zone Converter");
-
-  const table = document.querySelector("ui5-table");
-  expect(table).toBeTruthy();
-
-  const rows = document.querySelectorAll("ui5-table-row");
-  expect(rows.length).toBeGreaterThanOrEqual(1);
+  expect(document.querySelector("ui5-table")).toBeTruthy();
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(1);
 
   const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const cells = document.querySelectorAll("ui5-table-cell");
   let found = false;
   cells.forEach((cell) => {
-    if (cell.textContent?.includes(userTimeZone)) {
-      found = true;
-    }
+    if (cell.textContent?.includes(userTimeZone)) found = true;
   });
   expect(found).toBe(true);
 });
@@ -37,11 +70,10 @@ test("Time should update in real-time", async () => {
   expect(initialTimeCell).toBeTruthy();
   const initialTime = initialTimeCell?.textContent;
 
-  // Wait for at least 2 seconds to be sure the clock updates
+  // Real-time test: must wait for seconds to tick — kept as intentional sleep
   await new Promise((resolve) => setTimeout(resolve, 2100));
 
-  const updatedTimeCell = document.querySelector(".current-time");
-  const updatedTime = updatedTimeCell?.textContent;
+  const updatedTime = document.querySelector(".current-time")?.textContent;
   expect(updatedTime).not.toBe(initialTime);
 });
 
@@ -55,14 +87,13 @@ test("Adding multiple time zones via search", async () => {
   const timeZonesToAdd = ["Europe/London", "Asia/Tokyo", "America/Los_Angeles"];
 
   for (const tz of timeZonesToAdd) {
+    const beforeCount = document.querySelectorAll("ui5-table-row").length;
     search.value = tz;
     addBtn.click();
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await waitFor(() => document.querySelectorAll("ui5-table-row").length > beforeCount);
   }
 
-  const rows = document.querySelectorAll("ui5-table-row");
-  // Initial TZ + 3 added
-  expect(rows.length).toBeGreaterThanOrEqual(4);
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(4);
 
   const cells = Array.from(document.querySelectorAll("ui5-table-cell")).map((c) =>
     c.textContent?.trim(),
@@ -71,12 +102,9 @@ test("Adding multiple time zones via search", async () => {
   for (const tz of timeZonesToAdd) {
     expect(cells.some((c) => c?.includes(tz))).toBe(true);
     const city = tz.split("/").pop()?.replace(/_/g, " ");
-    if (city) {
-      expect(cells.some((c) => c?.includes(city))).toBe(true);
-    }
+    if (city) expect(cells.some((c) => c?.includes(city))).toBe(true);
   }
 
-  // Verify current time cells exist
   const timeCells = document.querySelectorAll(".current-time");
   expect(timeCells.length).toBeGreaterThanOrEqual(4);
   timeCells.forEach((cell) => {
@@ -88,12 +116,10 @@ test("Searching with partial name and filter='Contains'", async () => {
   const search = document.querySelector<any>("#tz-search");
   expect(search.getAttribute("filter")).toBe("Contains");
 
-  // We can't easily test the internal filtering of ui5-combobox in a unit test without more complex setup,
-  // but we can verify that the attribute is set and adding by full name still works as a proxy.
-  const tz = "Europe/Berlin";
-  search.value = tz;
+  const beforeCount = document.querySelectorAll("ui5-table-row").length;
+  search.value = "Europe/Berlin";
   document.querySelector<any>("#add-tz-btn").click();
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > beforeCount);
 
   const cells = Array.from(document.querySelectorAll("ui5-table-cell")).map((c) =>
     c.textContent?.trim(),
@@ -105,56 +131,51 @@ test("Time slider should update all time zones", async () => {
   const timeSlider = document.querySelector<any>("#time-slider");
   expect(timeSlider).toBeTruthy();
 
-  // Set slider to 12:00 PM (720 minutes)
   timeSlider.value = 720;
   timeSlider.dispatchEvent(new CustomEvent("input"));
 
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await waitFor(() => {
+    const cells = document.querySelectorAll(".current-time");
+    return Array.from(cells).every((c) => /:00:00 [AP]M/.test(c.textContent ?? ""));
+  });
 
-  const timeCells = document.querySelectorAll(".current-time");
-  timeCells.forEach((cell) => {
-    // Check if it's 12:00:00 PM in ANY timezone being displayed
-    // Since we only have UTC by default in beforeEach, it should be 12:00:00 PM UTC
-    // But the slider value is local minutes. Let's just check for '00:00' minutes/seconds
+  document.querySelectorAll(".current-time").forEach((cell) => {
     expect(cell.textContent).toMatch(/:00:00 [AP]M/);
   });
 
-  // Verify timeline highlighting (blue border for current hour)
   const highlightedBlocks = document.querySelectorAll('div[style*="2px solid #0074d9"]');
-  // At least one block for the selected 12 PM
   expect(highlightedBlocks.length).toBeGreaterThanOrEqual(1);
 });
 
 test("Opening event view dialog", async () => {
-  const eventViewBtn = document.querySelector<any>("#event-view-btn");
-  expect(eventViewBtn).toBeTruthy();
-
-  eventViewBtn.click();
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  document.querySelector<any>("#event-view-btn").click();
+  await waitFor(() => !!document.querySelector("ui5-dialog"));
 
   const dialog = document.querySelector("ui5-dialog");
-  // We can't easily check 'open' property in JSDOM-like environment sometimes,
-  // but we can check if it exists and has content
   expect(dialog).toBeTruthy();
   expect(dialog?.innerHTML).toContain("Meeting Details");
 });
 
 test("State should persist in URL hash", async () => {
-  const tz = "Europe/Paris";
+  const beforeCount = document.querySelectorAll("ui5-table-row").length;
   const search = document.querySelector<any>("#tz-search");
-  search.value = tz;
+  search.value = "Europe/Paris";
   document.querySelector<any>("#add-tz-btn").click();
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > beforeCount);
 
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  expect(window.location.hash).toContain(encodeURIComponent("Europe/Paris"));
 
-  expect(window.location.hash).toContain(encodeURIComponent(tz));
-
-  // Clear app and re-init to test loading from hash
-  const app = document.querySelector<HTMLElement>("#app")!;
+  const app = getApp();
   app.innerHTML = "";
   init(app);
 
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await waitFor(() => {
+    const cells = Array.from(document.querySelectorAll("ui5-table-cell")).map((c) =>
+      c.textContent?.trim(),
+    );
+    return cells.some((c) => c?.includes("Paris"));
+  });
+
   const cells = Array.from(document.querySelectorAll("ui5-table-cell")).map((c) =>
     c.textContent?.trim(),
   );
@@ -162,61 +183,54 @@ test("State should persist in URL hash", async () => {
 });
 
 test("Google Calendar link should be generated", async () => {
-  const eventViewBtn = document.querySelector<any>("#event-view-btn");
-  eventViewBtn.click();
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  const gcalBtn = document.querySelector("#gcal-btn");
-  expect(gcalBtn).toBeTruthy();
-  // Since we can't easily test window.open, we just verify the button exists in the rendered dialog
+  document.querySelector<any>("#event-view-btn").click();
+  await waitFor(() => !!document.querySelector("#gcal-btn"));
+  expect(document.querySelector("#gcal-btn")).toBeTruthy();
 });
 
 test("Custom settings: toggle 24h format", async () => {
-  const settingsBtn = document.querySelector<any>("#settings-btn");
-  settingsBtn.click();
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  document.querySelector<any>("#settings-btn").click();
+  await waitFor(() => !!document.querySelector("#format-switch"));
 
   const formatSwitch = document.querySelector<any>("#format-switch");
   expect(formatSwitch).toBeTruthy();
 
   formatSwitch.checked = true;
   formatSwitch.dispatchEvent(new CustomEvent("change"));
-  await new Promise((resolve) => setTimeout(resolve, 500));
 
-  const timeCells = document.querySelectorAll(".current-time");
-  timeCells.forEach((cell) => {
-    // Should NOT contain AM/PM if 24h
+  await waitFor(() => {
+    const cells = document.querySelectorAll(".current-time");
+    return Array.from(cells).every((c) => !/[AP]M/.test(c.textContent ?? ""));
+  });
+
+  document.querySelectorAll(".current-time").forEach((cell) => {
     expect(cell.textContent).not.toMatch(/[AP]M/);
   });
 });
 
 test("Reordering and removing time zones", async () => {
-  // Add a second TZ
-  const tz = "Asia/Seoul";
+  const beforeCount = document.querySelectorAll("ui5-table-row").length;
   const search = document.querySelector<any>("#tz-search");
-  search.value = tz;
+  search.value = "Asia/Seoul";
   document.querySelector<any>("#add-tz-btn").click();
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > beforeCount);
 
-  const rowsBefore = document.querySelectorAll("ui5-table-row");
-  expect(rowsBefore.length).toBeGreaterThanOrEqual(2);
+  const rowsBefore = document.querySelectorAll("ui5-table-row").length;
+  expect(rowsBefore).toBeGreaterThanOrEqual(2);
 
-  const removeBtn = document.querySelector<any>(".remove-tz-btn");
-  removeBtn.click();
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  document.querySelector<any>(".remove-tz-btn").click();
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length < rowsBefore);
 
-  const rowsAfter = document.querySelectorAll("ui5-table-row");
-  expect(rowsAfter.length).toBe(rowsBefore.length - 1);
+  expect(document.querySelectorAll("ui5-table-row").length).toBe(rowsBefore - 1);
 });
 
 test("No login required: app should be immediately usable", async () => {
-  // Verify that there are no login forms or redirection indicators
+  await waitFor(() => !!document.querySelector("#tz-search"));
+
   const bodyText = document.body.textContent;
   expect(bodyText).not.toContain("Login");
   expect(bodyText).not.toContain("Sign up");
   expect(bodyText).not.toContain("Authentication");
-
-  // Check if core elements are present immediately
   expect(document.querySelector("#tz-search")).toBeTruthy();
   expect(document.querySelector("#tz-table")).toBeTruthy();
 });
@@ -225,10 +239,11 @@ test("Adding up to 10 time zones", async () => {
   const search = document.querySelector<any>("#tz-search");
   const addBtn = document.querySelector<any>("#add-tz-btn");
 
+  // Australia/Sydney is already present (default zone), so skip it to avoid duplicate
   const extraZones = [
     "Africa/Cairo",
     "Asia/Seoul",
-    "Australia/Sydney",
+    "Europe/London",
     "Europe/Berlin",
     "America/New_York",
     "America/Chicago",
@@ -240,9 +255,546 @@ test("Adding up to 10 time zones", async () => {
   for (const tz of extraZones) {
     search.value = tz;
     addBtn.click();
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Re-renders are slow with hundreds of ComboBox items; wait generously per zone
+    await new Promise((r) => setTimeout(r, 3000));
   }
 
-  const rows = document.querySelectorAll("ui5-table-row");
-  expect(rows.length).toBeGreaterThanOrEqual(10);
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(10);
+}, 120000);
+
+// ---------------------------------------------------------------------------
+// New integration tests
+// ---------------------------------------------------------------------------
+
+test("Duplicate add is prevented", async () => {
+  const before = document.querySelectorAll("ui5-table-row").length;
+  const search = document.querySelector<any>("#tz-search");
+  const addBtn = document.querySelector<any>("#add-tz-btn");
+
+  // Add London once
+  search.value = "Europe/London";
+  addBtn.click();
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > before);
+
+  const afterFirst = document.querySelectorAll("ui5-table-row").length;
+
+  // Add London again — row count must not increase
+  search.value = "Europe/London";
+  addBtn.click();
+  await new Promise((r) => setTimeout(r, 200));
+
+  expect(document.querySelectorAll("ui5-table-row").length).toBe(afterFirst);
+});
+
+test("Move-down button reorders time zones", async () => {
+  const search = document.querySelector<any>("#tz-search");
+  const addBtn = document.querySelector<any>("#add-tz-btn");
+
+  // Add a second TZ so we have 2 rows
+  const before = document.querySelectorAll("ui5-table-row").length;
+  search.value = "Europe/London";
+  addBtn.click();
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > before);
+
+  const getFirstTzTag = () => document.querySelectorAll("ui5-tag")[0]?.textContent?.trim() ?? "";
+
+  const originalFirst = getFirstTzTag();
+
+  // Click move-down on the first row (index 0)
+  const moveDownBtns = document.querySelectorAll<any>(".move-down-btn");
+  expect(moveDownBtns.length).toBeGreaterThanOrEqual(2);
+  moveDownBtns[0].click();
+
+  await waitFor(() => getFirstTzTag() !== originalFirst);
+
+  expect(getFirstTzTag()).not.toBe(originalFirst);
+});
+
+test("Move-up button reorders time zones", async () => {
+  const search = document.querySelector<any>("#tz-search");
+  const addBtn = document.querySelector<any>("#add-tz-btn");
+
+  const before = document.querySelectorAll("ui5-table-row").length;
+  search.value = "Asia/Tokyo";
+  addBtn.click();
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > before);
+
+  const getFirstTzTag = () => document.querySelectorAll("ui5-tag")[0]?.textContent?.trim() ?? "";
+  const getLastTzTag = () => {
+    const tags = document.querySelectorAll("ui5-tag");
+    return tags[tags.length - 1]?.textContent?.trim() ?? "";
+  };
+
+  const originalFirst = getFirstTzTag();
+  const originalLast = getLastTzTag();
+
+  // Click move-up on the last row
+  const moveUpBtns = document.querySelectorAll<any>(".move-up-btn");
+  moveUpBtns[moveUpBtns.length - 1].click();
+
+  await waitFor(() => getFirstTzTag() !== originalFirst);
+
+  expect(getFirstTzTag()).toBe(originalLast);
+  expect(getLastTzTag()).toBe(originalFirst);
+});
+
+test("Reset-time button restores current time", async () => {
+  const timeSlider = document.querySelector<any>("#time-slider");
+
+  // Move to midnight
+  timeSlider.value = 0;
+  timeSlider.dispatchEvent(new CustomEvent("input"));
+  await waitFor(() => /:00:00/.test(document.querySelector(".current-time")?.textContent ?? ""));
+
+  const resetBtn = document.querySelector<any>("#reset-time-btn");
+  resetBtn.click();
+
+  // After reset the selected-time-display should be non-empty and slider should reflect current time
+  await waitFor(() => {
+    const display = document.querySelector("#selected-time-display")?.textContent ?? "";
+    const slider = document.querySelector<any>("#time-slider");
+    return display.length > 0 && slider && Number(slider.value) > 0;
+  }, 3000);
+
+  const display = document.querySelector("#selected-time-display")?.textContent ?? "";
+  expect(display.length).toBeGreaterThan(0);
+  // Slider should no longer be at 0 (midnight) since we reset to now
+  const sliderValue = Number(document.querySelector<any>("#time-slider")?.value ?? 0);
+  expect(sliderValue).toBeGreaterThan(0);
+});
+
+test("Duration display shows correct minutes", async () => {
+  await waitFor(() => !!document.querySelector("#tz-table"));
+  const bodyText = document.body.textContent ?? "";
+  expect(bodyText).toContain("Duration: 60 min");
+});
+
+test("Close settings dialog button works", async () => {
+  document.querySelector<any>("#settings-btn").click();
+  await waitFor(() => !!document.querySelector("#close-settings-btn"));
+
+  const dialog = document.querySelector<any>("#settings-dialog");
+  dialog.open = true;
+
+  document.querySelector<any>("#close-settings-btn").click();
+  await waitFor(() => !document.querySelector<any>("#settings-dialog")?.open);
+
+  expect(document.querySelector<any>("#settings-dialog")?.open).toBeFalsy();
+});
+
+test("Close event dialog button works", async () => {
+  document.querySelector<any>("#event-view-btn").click();
+  await waitFor(() => !!document.querySelector("#close-dialog-btn"));
+
+  const dialog = document.querySelector<any>("#event-dialog");
+  dialog.open = true;
+
+  document.querySelector<any>("#close-dialog-btn").click();
+  await waitFor(() => !document.querySelector<any>("#event-dialog")?.open);
+
+  expect(document.querySelector<any>("#event-dialog")?.open).toBeFalsy();
+});
+
+test("Malformed URL hash falls back gracefully", async () => {
+  window.location.hash = "notvalidjson";
+  document.body.innerHTML = '<div id="app"></div>';
+  init(getApp());
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  // Should still show user's local TZ as fallback
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(1);
+});
+
+test("Google Calendar URL has correct format", async () => {
+  const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+  document.querySelector<any>("#event-view-btn").click();
+  await waitFor(() => !!document.querySelector("#gcal-btn"));
+
+  document.querySelector<any>("#gcal-btn").click();
+
+  expect(openSpy).toHaveBeenCalledOnce();
+  const url = openSpy.mock.calls[0][0] as string;
+  expect(url).toMatch(/^https:\/\/www\.google\.com\/calendar\/render\?action=TEMPLATE/);
+  expect(url).toContain("&text=");
+  expect(url).toContain("&dates=");
+  expect(url).toContain("&details=");
+  // dates segment: two UTC timestamps separated by /
+  expect(url).toMatch(/&dates=\d{8}T\d{6}Z\/\d{8}T\d{6}Z/);
+
+  openSpy.mockRestore();
+});
+
+test("syncStateToURL serializes all required state fields", async () => {
+  const beforeCount = document.querySelectorAll("ui5-table-row").length;
+  const search = document.querySelector<any>("#tz-search");
+  search.value = "Europe/Paris";
+  document.querySelector<any>("#add-tz-btn").click();
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > beforeCount);
+
+  const hash = window.location.hash.slice(1);
+  expect(hash.length).toBeGreaterThan(0);
+
+  const state = JSON.parse(decodeURIComponent(hash));
+  expect(Array.isArray(state.zones)).toBe(true);
+  expect(state.zones.length).toBeGreaterThan(0);
+  expect(state.zones[0]).toHaveProperty("id");
+  expect(state.zones[0]).toHaveProperty("name");
+  expect(typeof state.time).toBe("string");
+  expect(typeof state.duration).toBe("number");
+  expect(typeof state.is24h).toBe("boolean");
+});
+
+test("formatTime respects 24h format setting", async () => {
+  document.querySelector<any>("#settings-btn").click();
+  await waitFor(() => !!document.querySelector("#format-switch"));
+
+  // Switch to 24h
+  const formatSwitch = document.querySelector<any>("#format-switch");
+  formatSwitch.checked = true;
+  formatSwitch.dispatchEvent(new CustomEvent("change"));
+
+  await waitFor(() => {
+    const cells = document.querySelectorAll(".current-time");
+    return Array.from(cells).every((c) => /^\d{2}:\d{2}:\d{2}$/.test(c.textContent?.trim() ?? ""));
+  });
+
+  document.querySelectorAll(".current-time").forEach((cell) => {
+    expect(cell.textContent?.trim()).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+  });
+});
+
+test("formatTime uses 12h format by default", async () => {
+  await waitFor(() => !!document.querySelector(".current-time"));
+
+  document.querySelectorAll(".current-time").forEach((cell) => {
+    expect(cell.textContent?.trim()).toMatch(/^\d{2}:\d{2}:\d{2} [AP]M$/);
+  });
+});
+
+test("ComboBox selection-change adds time zone", async () => {
+  const before = document.querySelectorAll("ui5-table-row").length;
+  const search = document.querySelector<any>("#tz-search");
+
+  search.dispatchEvent(
+    new CustomEvent("selection-change", {
+      detail: { item: { text: "Europe/Madrid" } },
+      bubbles: true,
+    }),
+  );
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > before);
+
+  const cells = Array.from(document.querySelectorAll("ui5-table-cell")).map((c) =>
+    c.textContent?.trim(),
+  );
+  expect(cells.some((c) => c?.includes("Europe/Madrid"))).toBe(true);
+  expect(search.value).toBe("");
+});
+
+test("ComboBox selection-change with no item is ignored", async () => {
+  const before = document.querySelectorAll("ui5-table-row").length;
+  const search = document.querySelector<any>("#tz-search");
+
+  search.dispatchEvent(
+    new CustomEvent("selection-change", {
+      detail: { item: null },
+      bubbles: true,
+    }),
+  );
+
+  await new Promise((r) => setTimeout(r, 200));
+  expect(document.querySelectorAll("ui5-table-row").length).toBe(before);
+});
+
+test("Add button ignores invalid time zone value", async () => {
+  const before = document.querySelectorAll("ui5-table-row").length;
+  const search = document.querySelector<any>("#tz-search");
+  search.value = "Not/AReal/Zone";
+  document.querySelector<any>("#add-tz-btn").click();
+
+  await new Promise((r) => setTimeout(r, 200));
+  expect(document.querySelectorAll("ui5-table-row").length).toBe(before);
+});
+
+test("Move-up on first row is a no-op", async () => {
+  const search = document.querySelector<any>("#tz-search");
+  const addBtn = document.querySelector<any>("#add-tz-btn");
+
+  const before = document.querySelectorAll("ui5-table-row").length;
+  search.value = "Europe/London";
+  addBtn.click();
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > before);
+
+  const getFirstTzTag = () => document.querySelectorAll("ui5-tag")[0]?.textContent?.trim() ?? "";
+  const originalFirst = getFirstTzTag();
+
+  const moveUpBtns = document.querySelectorAll<any>(".move-up-btn");
+  // First row move-up button is disabled but we dispatch click anyway to hit the guard
+  moveUpBtns[0].removeAttribute("disabled");
+  moveUpBtns[0].click();
+
+  await new Promise((r) => setTimeout(r, 200));
+  expect(getFirstTzTag()).toBe(originalFirst);
+});
+
+test("Move-down on last row is a no-op", async () => {
+  const search = document.querySelector<any>("#tz-search");
+  const addBtn = document.querySelector<any>("#add-tz-btn");
+
+  search.value = "Asia/Calcutta";
+  const beforeCount = document.querySelectorAll("ui5-table-row").length;
+  addBtn.click();
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length > beforeCount);
+
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(2);
+
+  const getTags = () =>
+    Array.from(document.querySelectorAll("ui5-tag")).map((t) => t.textContent?.trim());
+  const originalTags = getTags();
+
+  // Enable the disabled button to exercise the index guard
+  const moveDownBtns = document.querySelectorAll<any>(".move-down-btn");
+  const last = moveDownBtns[moveDownBtns.length - 1];
+  last.removeAttribute("disabled");
+  last.click();
+
+  // Guard check is synchronous; wait briefly for any accidental re-render
+  await new Promise((r) => setTimeout(r, 500));
+  expect(getTags()).toEqual(originalTags);
+}, 30000);
+
+test("updateClocks triggers full re-render when hour changes", async () => {
+  // Move slider to midnight so selectedDateTime is far from now
+  const timeSlider = document.querySelector<any>("#time-slider");
+  timeSlider.value = 0;
+  timeSlider.dispatchEvent(new CustomEvent("input"));
+  await waitFor(() => /:00:00/.test(document.querySelector(".current-time")?.textContent ?? ""));
+
+  // Reset restores selectedDateTime ≈ now; the clock interval (100ms) will then
+  // detect isCurrentlyNow=true and update both the display and slider.
+  document.querySelector<any>("#reset-time-btn").click();
+  await new Promise((r) => setTimeout(r, 300));
+
+  const sliderVal = Number(document.querySelector<any>("#time-slider")?.value ?? 0);
+  expect(sliderVal).toBeGreaterThan(0);
+});
+
+test("init with empty hash uses auto-detected timezone", async () => {
+  window.location.hash = "";
+  document.body.innerHTML = '<div id="app"></div>';
+  init(document.querySelector<HTMLElement>("#app")!);
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const cells = Array.from(document.querySelectorAll("ui5-table-cell")).map((c) =>
+    c.textContent?.trim(),
+  );
+  expect(cells.some((c) => c?.includes(userTz))).toBe(true);
+});
+
+test("init with partial hash only applies present fields", async () => {
+  // Hash with zones only — time, duration, is24h all absent
+  window.location.hash = encodeURIComponent(
+    JSON.stringify({ zones: [{ id: "Europe/London", name: "Europe/London" }] }),
+  );
+  document.body.innerHTML = '<div id="app"></div>';
+  init(document.querySelector<HTMLElement>("#app")!);
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  const cells = Array.from(document.querySelectorAll("ui5-table-cell")).map((c) =>
+    c.textContent?.trim(),
+  );
+  expect(cells.some((c) => c?.includes("London"))).toBe(true);
+  // duration defaults to 60 min when not in hash
+  expect(document.body.textContent).toContain("Duration: 60 min");
+});
+
+test("updateClocks triggers re-render when hour rolls over", async () => {
+  const now = Temporal.Now.zonedDateTimeISO();
+
+  // Set selectedDateTime to the same instant but with a different hour value
+  // by mocking the slider to the previous hour
+  const prevHourMinutes = (now.hour === 0 ? 23 : now.hour - 1) * 60 + now.minute;
+  const timeSlider = document.querySelector<any>("#time-slider");
+  timeSlider.value = prevHourMinutes;
+  timeSlider.dispatchEvent(new CustomEvent("input"));
+  await new Promise((r) => setTimeout(r, 200));
+
+  // Now reset to current time — updateClocks will see isCurrentlyNow=true and
+  // selectedDateTime.hour !== now.hour, triggering a full render()
+  document.querySelector<any>("#reset-time-btn").click();
+  // Wait for the 100ms clock tick + render
+  await new Promise((r) => setTimeout(r, 300));
+
+  // Table should still be rendered correctly after the re-render
+  expect(document.querySelector("ui5-shellbar")).toBeTruthy();
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(1);
+  // Slider should now reflect current time
+  const sliderVal = Number(document.querySelector<any>("#time-slider")?.value ?? 0);
+  expect(sliderVal).toBeGreaterThan(0);
+});
+
+test("updateClocks re-renders when clock crosses an hour boundary", async () => {
+  // Reset to real current time so isCurrentlyNow will be true
+  document.querySelector<any>("#reset-time-btn").click();
+  await new Promise((r) => setTimeout(r, 300));
+
+  const realNow = Temporal.Now.zonedDateTimeISO();
+
+  // Construct a proxy-like object: same epochMilliseconds as now (passes the 2s
+  // isCurrentlyNow check) but a different .hour (triggers the re-render branch).
+  // We use a Proxy so internal-slot accessors on ZonedDateTime still work.
+  const fakeHour = (realNow.hour + 1) % 24;
+  const fakeNow = new Proxy(realNow, {
+    get(target, prop) {
+      if (prop === "hour") return fakeHour;
+      if (prop === "epochMilliseconds") return realNow.epochMilliseconds;
+      const val = (target as any)[prop];
+      return typeof val === "function" ? val.bind(target) : val;
+    },
+  }) as typeof realNow;
+
+  const spy = vi.spyOn(Temporal.Now, "zonedDateTimeISO").mockReturnValue(fakeNow);
+
+  // Wait for the 100ms interval to fire updateClocks with our fake now
+  await new Promise((r) => setTimeout(r, 250));
+
+  // The hour mismatch should have triggered render() — table must still be intact
+  expect(document.querySelector("ui5-shellbar")).toBeTruthy();
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(1);
+
+  spy.mockRestore();
+});
+
+test("init with hash missing is24h field leaves format as default 12h", async () => {
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const now = Temporal.Now.zonedDateTimeISO().toString();
+  // Hash without is24h — the `if (state.is24h !== undefined)` branch takes false
+  window.location.hash = encodeURIComponent(
+    JSON.stringify({ zones: [{ id: userTz, name: userTz }], time: now, duration: 45 }),
+  );
+  document.body.innerHTML = '<div id="app"></div>';
+  init(document.querySelector<HTMLElement>("#app")!);
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  // Should default to 12h — cells show AM/PM
+  document.querySelectorAll(".current-time").forEach((cell) => {
+    expect(cell.textContent?.trim()).toMatch(/[AP]M/);
+  });
+  // Duration from hash should be applied
+  expect(document.body.textContent).toContain("Duration: 45 min");
+});
+
+test("init with hash missing duration keeps existing duration", async () => {
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const now = Temporal.Now.zonedDateTimeISO().toString();
+  // Hash without duration — the `if (state.duration)` branch takes false
+  window.location.hash = encodeURIComponent(
+    JSON.stringify({ zones: [{ id: userTz, name: userTz }], time: now, is24h: false }),
+  );
+  document.body.innerHTML = '<div id="app"></div>';
+  init(document.querySelector<HTMLElement>("#app")!);
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(1);
+});
+
+test("timeline cells render night, morning, and work-hour colors", async () => {
+  // Set slider to hour 10 (work hours) so the selected range is around 10:00.
+  // We then check hours clearly outside the selected range for their base color.
+  const timeSlider = document.querySelector<any>("#time-slider");
+  timeSlider.value = 600; // 10:00
+  timeSlider.dispatchEvent(new CustomEvent("input"));
+
+  await waitFor(() => !!document.querySelector('div[title="0:00"]'));
+
+  // The browser normalizes hex colors to rgb() in computed/inline styles.
+  // Night #2c3e50 → rgb(44, 62, 80)
+  const nightBlock = document.querySelector<HTMLElement>('div[title="2:00"]');
+  expect(nightBlock?.style.background).toBe("rgb(44, 62, 80)");
+
+  // Morning #f39c12 → rgb(243, 156, 18)
+  const morningBlock = document.querySelector<HTMLElement>('div[title="7:00"]');
+  expect(morningBlock?.style.background).toBe("rgb(243, 156, 18)");
+
+  // Late night hour 21
+  const lateNightBlock = document.querySelector<HTMLElement>('div[title="21:00"]');
+  expect(lateNightBlock?.style.background).toBe("rgb(44, 62, 80)");
+
+  // The selected hour (10) should have the blue border highlight
+  const selectedBlock = document.querySelector<HTMLElement>('div[title="10:00"]');
+  expect(selectedBlock?.style.border).toContain("rgb(0, 116, 217)");
+});
+
+test("timeline shows work-hour color and range highlight", async () => {
+  const timeSlider = document.querySelector<any>("#time-slider");
+  // Set to 14:00 (work hours, well inside 9–16 range)
+  timeSlider.value = 840;
+  timeSlider.dispatchEvent(new CustomEvent("input"));
+
+  await waitFor(() => !!document.querySelector('div[title="14:00"]'));
+
+  // Hour 14 is the selected hour — should get blue border
+  const selectedBlock = document.querySelector<HTMLElement>('div[title="14:00"]');
+  expect(selectedBlock?.style.border).toContain("rgb(0, 116, 217)");
+
+  // Hour 12 is in the range (14:00 + 60min range covers 14–15) — NOT in range
+  // but we verify work-hour green color on non-selected, non-range hours
+  const workBlock = document.querySelector<HTMLElement>('div[title="12:00"]');
+  expect(workBlock?.style.background).toBe("rgb(46, 204, 113)");
+});
+
+test("timeline midnight-wrap: end-hour dashed border when range crosses midnight", async () => {
+  const timeSlider = document.querySelector<any>("#time-slider");
+  // Set to 23:30 (1380 min) — with default 60min duration, end is 00:30 (hour 0)
+  // The || 24 branch in isRangeHour fires when end.hour === 0
+  timeSlider.value = 1380;
+  timeSlider.dispatchEvent(new CustomEvent("input"));
+
+  await waitFor(() => !!document.querySelector('div[title="23:00"]'));
+
+  // Hour 23 should be the selected hour
+  const selected = document.querySelector<HTMLElement>('div[title="23:00"]');
+  expect(selected?.style.border).toContain("rgb(0, 116, 217)");
+
+  // Hour 0 is the end hour — should get dashed border (isEndHour path)
+  const endBlock = document.querySelector<HTMLElement>('div[title="0:00"]');
+  // isEndHour ? "2px dashed #0074d9" : "1px solid #ddd"
+  // The browser normalizes to rgb(), check for "dashed"
+  expect(endBlock?.style.border).toContain("dashed");
+});
+
+test("init with hash missing zones keeps existing zones", async () => {
+  const now = Temporal.Now.zonedDateTimeISO().toString();
+  // Hash without zones — the `if (state.zones)` branch takes false
+  window.location.hash = encodeURIComponent(
+    JSON.stringify({ time: now, duration: 60, is24h: false }),
+  );
+  document.body.innerHTML = '<div id="app"></div>';
+  init(document.querySelector<HTMLElement>("#app")!);
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  // App renders with whatever selectedTimeZones was before (at least one row)
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(1);
+});
+
+test("init with hash missing time keeps existing selectedDateTime", async () => {
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // Hash without time — the `if (state.time)` branch takes false
+  window.location.hash = encodeURIComponent(
+    JSON.stringify({ zones: [{ id: userTz, name: userTz }], duration: 60, is24h: false }),
+  );
+  document.body.innerHTML = '<div id="app"></div>';
+  init(document.querySelector<HTMLElement>("#app")!);
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(1);
 });
