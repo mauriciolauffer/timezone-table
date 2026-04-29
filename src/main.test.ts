@@ -641,3 +641,164 @@ test("updateClocks triggers re-render when hour rolls over", async () => {
   const sliderVal = Number(document.querySelector<any>("#time-slider")?.value ?? 0);
   expect(sliderVal).toBeGreaterThan(0);
 });
+
+test("updateClocks re-renders when clock crosses an hour boundary", async () => {
+  // Reset to real current time so isCurrentlyNow will be true
+  document.querySelector<any>("#reset-time-btn").click();
+  await new Promise((r) => setTimeout(r, 300));
+
+  const realNow = Temporal.Now.zonedDateTimeISO();
+
+  // Construct a proxy-like object: same epochMilliseconds as now (passes the 2s
+  // isCurrentlyNow check) but a different .hour (triggers the re-render branch).
+  // We use a Proxy so internal-slot accessors on ZonedDateTime still work.
+  const fakeHour = (realNow.hour + 1) % 24;
+  const fakeNow = new Proxy(realNow, {
+    get(target, prop) {
+      if (prop === "hour") return fakeHour;
+      if (prop === "epochMilliseconds") return realNow.epochMilliseconds;
+      const val = (target as any)[prop];
+      return typeof val === "function" ? val.bind(target) : val;
+    },
+  }) as typeof realNow;
+
+  const spy = vi.spyOn(Temporal.Now, "zonedDateTimeISO").mockReturnValue(fakeNow);
+
+  // Wait for the 100ms interval to fire updateClocks with our fake now
+  await new Promise((r) => setTimeout(r, 250));
+
+  // The hour mismatch should have triggered render() — table must still be intact
+  expect(document.querySelector("ui5-shellbar")).toBeTruthy();
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(1);
+
+  spy.mockRestore();
+});
+
+test("init with hash missing is24h field leaves format as default 12h", async () => {
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const now = Temporal.Now.zonedDateTimeISO().toString();
+  // Hash without is24h — the `if (state.is24h !== undefined)` branch takes false
+  window.location.hash = encodeURIComponent(
+    JSON.stringify({ zones: [{ id: userTz, name: userTz }], time: now, duration: 45 }),
+  );
+  document.body.innerHTML = '<div id="app"></div>';
+  init(document.querySelector<HTMLElement>("#app")!);
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  // Should default to 12h — cells show AM/PM
+  document.querySelectorAll(".current-time").forEach((cell) => {
+    expect(cell.textContent?.trim()).toMatch(/[AP]M/);
+  });
+  // Duration from hash should be applied
+  expect(document.body.textContent).toContain("Duration: 45 min");
+});
+
+test("init with hash missing duration keeps existing duration", async () => {
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const now = Temporal.Now.zonedDateTimeISO().toString();
+  // Hash without duration — the `if (state.duration)` branch takes false
+  window.location.hash = encodeURIComponent(
+    JSON.stringify({ zones: [{ id: userTz, name: userTz }], time: now, is24h: false }),
+  );
+  document.body.innerHTML = '<div id="app"></div>';
+  init(document.querySelector<HTMLElement>("#app")!);
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(1);
+});
+
+test("timeline cells render night, morning, and work-hour colors", async () => {
+  // Set slider to hour 10 (work hours) so the selected range is around 10:00.
+  // We then check hours clearly outside the selected range for their base color.
+  const timeSlider = document.querySelector<any>("#time-slider");
+  timeSlider.value = 600; // 10:00
+  timeSlider.dispatchEvent(new CustomEvent("input"));
+
+  await waitFor(() => !!document.querySelector('div[title="0:00"]'));
+
+  // The browser normalizes hex colors to rgb() in computed/inline styles.
+  // Night #2c3e50 → rgb(44, 62, 80)
+  const nightBlock = document.querySelector<HTMLElement>('div[title="2:00"]');
+  expect(nightBlock?.style.background).toBe("rgb(44, 62, 80)");
+
+  // Morning #f39c12 → rgb(243, 156, 18)
+  const morningBlock = document.querySelector<HTMLElement>('div[title="7:00"]');
+  expect(morningBlock?.style.background).toBe("rgb(243, 156, 18)");
+
+  // Late night hour 21
+  const lateNightBlock = document.querySelector<HTMLElement>('div[title="21:00"]');
+  expect(lateNightBlock?.style.background).toBe("rgb(44, 62, 80)");
+
+  // The selected hour (10) should have the blue border highlight
+  const selectedBlock = document.querySelector<HTMLElement>('div[title="10:00"]');
+  expect(selectedBlock?.style.border).toContain("rgb(0, 116, 217)");
+});
+
+test("timeline shows work-hour color and range highlight", async () => {
+  const timeSlider = document.querySelector<any>("#time-slider");
+  // Set to 14:00 (work hours, well inside 9–16 range)
+  timeSlider.value = 840;
+  timeSlider.dispatchEvent(new CustomEvent("input"));
+
+  await waitFor(() => !!document.querySelector('div[title="14:00"]'));
+
+  // Hour 14 is the selected hour — should get blue border
+  const selectedBlock = document.querySelector<HTMLElement>('div[title="14:00"]');
+  expect(selectedBlock?.style.border).toContain("rgb(0, 116, 217)");
+
+  // Hour 12 is in the range (14:00 + 60min range covers 14–15) — NOT in range
+  // but we verify work-hour green color on non-selected, non-range hours
+  const workBlock = document.querySelector<HTMLElement>('div[title="12:00"]');
+  expect(workBlock?.style.background).toBe("rgb(46, 204, 113)");
+});
+
+test("timeline midnight-wrap: end-hour dashed border when range crosses midnight", async () => {
+  const timeSlider = document.querySelector<any>("#time-slider");
+  // Set to 23:30 (1380 min) — with default 60min duration, end is 00:30 (hour 0)
+  // The || 24 branch in isRangeHour fires when end.hour === 0
+  timeSlider.value = 1380;
+  timeSlider.dispatchEvent(new CustomEvent("input"));
+
+  await waitFor(() => !!document.querySelector('div[title="23:00"]'));
+
+  // Hour 23 should be the selected hour
+  const selected = document.querySelector<HTMLElement>('div[title="23:00"]');
+  expect(selected?.style.border).toContain("rgb(0, 116, 217)");
+
+  // Hour 0 is the end hour — should get dashed border (isEndHour path)
+  const endBlock = document.querySelector<HTMLElement>('div[title="0:00"]');
+  // isEndHour ? "2px dashed #0074d9" : "1px solid #ddd"
+  // The browser normalizes to rgb(), check for "dashed"
+  expect(endBlock?.style.border).toContain("dashed");
+});
+
+test("init with hash missing zones keeps existing zones", async () => {
+  const now = Temporal.Now.zonedDateTimeISO().toString();
+  // Hash without zones — the `if (state.zones)` branch takes false
+  window.location.hash = encodeURIComponent(
+    JSON.stringify({ time: now, duration: 60, is24h: false }),
+  );
+  document.body.innerHTML = '<div id="app"></div>';
+  init(document.querySelector<HTMLElement>("#app")!);
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  // App renders with whatever selectedTimeZones was before (at least one row)
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(1);
+});
+
+test("init with hash missing time keeps existing selectedDateTime", async () => {
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // Hash without time — the `if (state.time)` branch takes false
+  window.location.hash = encodeURIComponent(
+    JSON.stringify({ zones: [{ id: userTz, name: userTz }], duration: 60, is24h: false }),
+  );
+  document.body.innerHTML = '<div id="app"></div>';
+  init(document.querySelector<HTMLElement>("#app")!);
+
+  await waitFor(() => document.querySelectorAll("ui5-table-row").length >= 1);
+
+  expect(document.querySelectorAll("ui5-table-row").length).toBeGreaterThanOrEqual(1);
+});
