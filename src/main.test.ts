@@ -597,7 +597,6 @@ test("init with empty hash uses auto-detected timezone", async () => {
 
 test("init with partial hash only applies present fields", async () => {
   // Hash with zones only — time, duration, is24h all absent
-  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   window.location.hash = encodeURIComponent(
     JSON.stringify({ zones: [{ id: "Europe/London", name: "Europe/London" }] }),
   );
@@ -624,9 +623,6 @@ test("updateClocks triggers re-render when hour rolls over", async () => {
   timeSlider.value = prevHourMinutes;
   timeSlider.dispatchEvent(new CustomEvent("input"));
   await new Promise((r) => setTimeout(r, 200));
-
-  // Spy on render indirectly: the shellbar re-renders when render() is called
-  const shellbarBefore = document.querySelector("ui5-shellbar");
 
   // Now reset to current time — updateClocks will see isCurrentlyNow=true and
   // selectedDateTime.hour !== now.hour, triggering a full render()
